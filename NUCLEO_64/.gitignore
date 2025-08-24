@@ -1,0 +1,17 @@
+.metadata/
+.log
+.cproject
+.project
+.settings/
+.launch
+Debug/
+Release/
+build/
+*.bin
+*.hex
+*.elf
+*.map
+*.o
+*.d
+*.su
+*.srec
