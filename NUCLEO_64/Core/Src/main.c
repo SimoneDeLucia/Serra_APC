@@ -51,7 +51,16 @@ UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
 /* USER CODE BEGIN PV */
+unsigned short int adc_data_ready = 0;
+uint32_t adcvalue;
+int32_t rawCounter = 0;
+int32_t last_rawCounter = 0;
+int32_t counter = 0;
+int32_t last_counter = 0;
+uint32_t blink_delay = 200; // default  delay time
 
+const int MIN_VALUE = 0;
+const int MAX_VALUE = 20;
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -79,7 +88,7 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
-	char SCREEN_text[] =  "Serra Digitale";
+ 	char SCREEN_text[] =  "Serra Digitale";
 	char retVal;
   /* USER CODE END 1 */
 
@@ -108,7 +117,7 @@ int main(void)
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
   ssd1306_Init();
-
+  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
   ssd1306_SetCursor(0,0);
   ssd1306_FillRectangle(0,0,128,15, White);
   retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
@@ -139,7 +148,48 @@ int main(void)
 
   	}
 
-  	HAL_Delay(100);
+    HAL_ADC_Start(&hadc1);
+   HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
+        adcvalue = HAL_ADC_GetValue(&hadc1);
+   HAL_ADC_Stop(&hadc1);
+
+   rawCounter = __HAL_TIM_GET_COUNTER(&htim3);
+
+   // Controlla se il valore è cambiato e in che direzione
+   if (rawCounter != last_rawCounter)
+   {
+       // Se il contatore del timer è aumentato
+       if (rawCounter > last_rawCounter)
+       {
+           // Incrementa il nostro contatore solo se non ha raggiunto il valore massimo
+           if (counter < MAX_VALUE)
+           {
+               counter++;
+           }
+       }
+       // Se il contatore del timer è diminuito
+       else if (rawCounter < last_rawCounter)
+       {
+           // Decrementa il nostro contatore solo se non ha raggiunto il valore minimo
+           if (counter > MIN_VALUE)
+           {
+               counter--;
+           }
+       }
+
+       // Aggiorna la variabile last_rawCounter per il prossimo ciclo
+       last_rawCounter = rawCounter;
+
+       // Ricalcola il delay solo se il counter è cambiato
+       if (counter != last_counter) {
+           blink_delay = 10 + (counter * 10);
+           last_counter = counter;
+       }
+   }
+    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
+
+    HAL_Delay(blink_delay);
+
 
 
   }
@@ -214,7 +264,7 @@ static void MX_ADC1_Init(void)
   */
   hadc1.Instance = ADC1;
   hadc1.Init.ClockPrescaler = ADC_CLOCK_SYNC_PCLK_DIV4;
-  hadc1.Init.Resolution = ADC_RESOLUTION_12B;
+  hadc1.Init.Resolution = ADC_RESOLUTION_6B;
   hadc1.Init.ScanConvMode = DISABLE;
   hadc1.Init.ContinuousConvMode = DISABLE;
   hadc1.Init.DiscontinuousConvMode = DISABLE;
@@ -302,7 +352,7 @@ static void MX_TIM3_Init(void)
   htim3.Init.Period = 65535;
   htim3.Init.ClockDivision = TIM_CLOCKDIVISION_DIV1;
   htim3.Init.AutoReloadPreload = TIM_AUTORELOAD_PRELOAD_DISABLE;
-  sConfig.EncoderMode = TIM_ENCODERMODE_TI1;
+  sConfig.EncoderMode = TIM_ENCODERMODE_TI12;
   sConfig.IC1Polarity = TIM_ICPOLARITY_RISING;
   sConfig.IC1Selection = TIM_ICSELECTION_DIRECTTI;
   sConfig.IC1Prescaler = TIM_ICPSC_DIV1;
