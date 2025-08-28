@@ -59,6 +59,7 @@ int32_t counter = 0;
 int32_t last_counter = 0;
 uint32_t blink_delay = 200; // default  delay time
 
+
 const int MIN_VALUE = 0;
 const int MAX_VALUE = 20;
 /* USER CODE END PV */
@@ -77,7 +78,7 @@ static void MX_TIM3_Init(void);
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-
+char retVal;
 /* USER CODE END 0 */
 
 /**
@@ -89,7 +90,7 @@ int main(void)
 
   /* USER CODE BEGIN 1 */
  	char SCREEN_text[] =  "Serra Digitale";
-	char retVal;
+
   /* USER CODE END 1 */
 
   /* MCU Configuration--------------------------------------------------------*/
@@ -135,18 +136,18 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
-  	if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET)
-  	{
-  		HAL_GPIO_TogglePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin);
-  		HAL_GPIO_TogglePin(RGB_LED_BLUE_GPIO_Port, RGB_LED_BLUE_Pin);
-  		char SCREEN_text[] = "Gabocchia";
-  		ssd1306_Fill(Black);
-  		ssd1306_FillRectangle(0,0,128,15, White);
-  		ssd1306_SetCursor(15,0);
-  	  retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
-  	  ssd1306_UpdateScreen();
-
-  	}
+//  	if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET)
+//  	{
+//  		HAL_GPIO_TogglePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin);
+//  		HAL_GPIO_TogglePin(RGB_LED_BLUE_GPIO_Port, RGB_LED_BLUE_Pin);
+//  		char SCREEN_text[] = "Gabocchia";
+//  		ssd1306_Fill(Black);
+//  		ssd1306_FillRectangle(0,0,128,15, White);
+//  		ssd1306_SetCursor(15,0);
+//  		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+//  		ssd1306_UpdateScreen();
+//
+//  	}
 
     HAL_ADC_Start(&hadc1);
    HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
@@ -487,17 +488,27 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : BTN_mode_auxiliary_Pin */
-  GPIO_InitStruct.Pin = BTN_mode_auxiliary_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pin : PA8 */
+  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(BTN_mode_auxiliary_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : BTN_select_Pin */
-  GPIO_InitStruct.Pin = BTN_select_Pin;
-  GPIO_InitStruct.Mode = GPIO_MODE_INPUT;
+  /*Configure GPIO pin : PB3 */
+  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(BTN_select_GPIO_Port, &GPIO_InitStruct);
+  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+
+  /* EXTI interrupt init*/
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI3_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
 
@@ -505,7 +516,60 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
+void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
+{
+    if(htim->Instance == TIM3)
+    {
+    	int32_t encoder_position = __HAL_TIM_GET_COUNTER(htim);
 
+        if(__HAL_TIM_IS_TIM_COUNTING_DOWN(htim))
+        {
+            // rotazione verso sinistra
+        	char SCREEN_text[] = "SX_Rotation";
+      		ssd1306_Fill(Black);
+      		ssd1306_FillRectangle(0,0,128,15, White);
+      		ssd1306_SetCursor(15,0);
+      		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+      		ssd1306_UpdateScreen();
+        }
+        else
+        {
+            // rotazione verso destra
+        	char SCREEN_text[] = "DX_Rotation";
+      		ssd1306_Fill(Black);
+      		ssd1306_FillRectangle(0,0,128,15, White);
+      		ssd1306_SetCursor(15,0);
+      		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+      		ssd1306_UpdateScreen();
+        }
+    }
+}
+
+void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
+{
+  /* Prevent unused argument(s) compilation warning */
+  if(GPIO_Pin == GPIO_PIN_8){
+	  HAL_GPIO_TogglePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin);
+	  char SCREEN_text[] = "SELECT";
+		ssd1306_Fill(Black);
+		ssd1306_FillRectangle(0,0,128,15, White);
+		ssd1306_SetCursor(15,0);
+		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+		ssd1306_UpdateScreen();
+  }
+  else if(GPIO_Pin == GPIO_PIN_3){
+  	char SCREEN_text[] = "MODE";
+		ssd1306_Fill(Black);
+		ssd1306_FillRectangle(0,0,128,15, White);
+		ssd1306_SetCursor(15,0);
+		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+		ssd1306_UpdateScreen();
+  }
+
+  /* NOTE: This function Should not be modified, when the callback is needed,
+           the HAL_GPIO_EXTI_Callback could be implemented in the user file
+   */
+}
 /* USER CODE END 4 */
 
 /**
