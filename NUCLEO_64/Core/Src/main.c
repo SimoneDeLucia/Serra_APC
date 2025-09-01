@@ -18,11 +18,15 @@
 /* USER CODE END Header */
 /* Includes ------------------------------------------------------------------*/
 #include "main.h"
+#include "cmsis_os.h"
 
 /* Private includes ----------------------------------------------------------*/
 /* USER CODE BEGIN Includes */
 #include "ssd1306.h"
 #include "ssd1306_fonts.h"
+#include "FreeRTOS.h"
+#include "semphr.h"
+#include "string.h"
 /* USER CODE END Includes */
 
 /* Private typedef -----------------------------------------------------------*/
@@ -32,7 +36,10 @@
 
 /* Private define ------------------------------------------------------------*/
 /* USER CODE BEGIN PD */
-
+#define DIM 8
+#define DIM_SCREEN 50
+#define MIN_VALUE 0
+#define MAX_VALUE 20
 /* USER CODE END PD */
 
 /* Private macro -------------------------------------------------------------*/
@@ -50,18 +57,60 @@ TIM_HandleTypeDef htim3;
 UART_HandleTypeDef huart1;
 UART_HandleTypeDef huart2;
 
+/* Definitions for defaultTask */
+osThreadId_t defaultTaskHandle;
+const osThreadAttr_t defaultTask_attributes = {
+  .name = "defaultTask",
+  .stack_size = 128 * 4,
+  .priority = (osPriority_t) osPriorityNormal,
+};
 /* USER CODE BEGIN PV */
-unsigned short int adc_data_ready = 0;
-uint32_t adcvalue;
+/**
+ * MODE E SELECT
+ */
+volatile uint8_t push_mode_button = 0;
+volatile uint8_t push_select_button = 0;
+
+/**
+ * ADC
+ */
+
+uint8_t adc_data_ready = 0;
+uint32_t adc_value = 0;
+uint32_t adc_value_prev = 0;
+uint32_t cont_misure_adc = 0;
+/**
+ * ENCODER
+ */
+
+
 int32_t rawCounter = 0;
 int32_t last_rawCounter = 0;
 int32_t counter = 0;
 int32_t last_counter = 0;
-uint32_t blink_delay = 200; // default  delay time
+uint32_t cont_misure_tim = 0;
+
+/**
+ * VALORI DA MOSTRARE A SCHERMO
+ */
+
+char SCREEN_TEXT[DIM_SCREEN] = "\0";
+char selected_val_luce[DIM+1] = "\0";
+char selected_val_temp[DIM+1] = "\0";
+char actual_val_luce[DIM+1] = "\0";
+char actual_val_temp[DIM+1] = "\0";
+
+/**
+ * SEMAFORI
+ */
+
+SemaphoreHandle_t sem_sel_luce;
+SemaphoreHandle_t sem_sel_temp;
+SemaphoreHandle_t sem_act_luce;
+SemaphoreHandle_t sem_act_temp;
 
 
-const int MIN_VALUE = 0;
-const int MAX_VALUE = 20;
+
 /* USER CODE END PV */
 
 /* Private function prototypes -----------------------------------------------*/
@@ -72,13 +121,15 @@ static void MX_USART1_UART_Init(void);
 static void MX_USART2_UART_Init(void);
 static void MX_ADC1_Init(void);
 static void MX_TIM3_Init(void);
+void StartDefaultTask(void *argument);
+
 /* USER CODE BEGIN PFP */
 
 /* USER CODE END PFP */
 
 /* Private user code ---------------------------------------------------------*/
 /* USER CODE BEGIN 0 */
-char retVal;
+
 /* USER CODE END 0 */
 
 /**
@@ -89,7 +140,6 @@ int main(void)
 {
 
   /* USER CODE BEGIN 1 */
- 	char SCREEN_text[] =  "Serra Digitale";
 
   /* USER CODE END 1 */
 
@@ -107,6 +157,8 @@ int main(void)
 
   /* USER CODE BEGIN SysInit */
 
+
+
   /* USER CODE END SysInit */
 
   /* Initialize all configured peripherals */
@@ -117,17 +169,69 @@ int main(void)
   MX_ADC1_Init();
   MX_TIM3_Init();
   /* USER CODE BEGIN 2 */
+
+
+
+
   ssd1306_Init();
-  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+
+
   ssd1306_SetCursor(0,0);
   ssd1306_FillRectangle(0,0,128,15, White);
-  retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+  strcpy(SCREEN_TEXT, "Serra Digitale");
+  ssd1306_WriteString(SCREEN_TEXT, Font_16x15, Black);
   ssd1306_UpdateScreen();
 
-  HAL_GPIO_TogglePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin);
-  HAL_GPIO_TogglePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin);
+  HAL_GPIO_WritePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin, GPIO_PIN_SET);
+  HAL_GPIO_WritePin(RGB_LED_BLUE_GPIO_Port, RGB_LED_BLUE_Pin, GPIO_PIN_RESET);
+  HAL_GPIO_WritePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin, GPIO_PIN_RESET);
 
+  HAL_ADC_Start_IT(&hadc1);
   /* USER CODE END 2 */
+
+//  /* Init scheduler */
+//  osKernelInitialize();
+//
+//  /* USER CODE BEGIN RTOS_MUTEX */
+//  /* add mutexes, ... */
+//  /* USER CODE END RTOS_MUTEX */
+//
+//  /* USER CODE BEGIN RTOS_SEMAPHORES */
+//  sem_sel_luce = xSemaphoreCreateBinary();
+//  sem_sel_temp = xSemaphoreCreateBinary();
+//  sem_act_luce = xSemaphoreCreateBinary();
+//  sem_act_temp = xSemaphoreCreateBinary();
+//
+//  xSemaphoreGive(sem_sel_luce);
+//  xSemaphoreGive(sem_sel_temp);
+//  xSemaphoreGive(sem_act_luce);
+//  xSemaphoreGive(sem_act_temp);
+//  /* USER CODE END RTOS_SEMAPHORES */
+//
+//  /* USER CODE BEGIN RTOS_TIMERS */
+//  /* start timers, add new ones, ... */
+//  /* USER CODE END RTOS_TIMERS */
+//
+//  /* USER CODE BEGIN RTOS_QUEUES */
+//  /* add queues, ... */
+//  /* USER CODE END RTOS_QUEUES */
+//
+//  /* Create the thread(s) */
+//  /* creation of defaultTask */
+// defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+//
+//  /* USER CODE BEGIN RTOS_THREADS */
+//  /* add threads, ... */
+//  /* USER CODE END RTOS_THREADS */
+//
+//  /* USER CODE BEGIN RTOS_EVENTS */
+//  /* add events, ... */
+//  /* USER CODE END RTOS_EVENTS */
+//
+//  /* Start scheduler */
+//  osKernelStart();
+
+  /* We should never get here as control is now taken by the scheduler */
 
   /* Infinite loop */
   /* USER CODE BEGIN WHILE */
@@ -136,6 +240,82 @@ int main(void)
     /* USER CODE END WHILE */
 
     /* USER CODE BEGIN 3 */
+	  if(push_mode_button == 0 && push_select_button == 0){
+		  cont_misure_adc = 0;
+			ssd1306_SetCursor(30,0);
+			ssd1306_FillRectangle(0,0,128,15, White);
+			snprintf(SCREEN_TEXT, sizeof(SCREEN_TEXT), "Temp. %d\r\n", (int)adc_value);
+			ssd1306_WriteString(SCREEN_TEXT, Font_16x15, Black);
+			ssd1306_UpdateScreen();
+		  if(adc_data_ready == 1)
+			{
+				if (adc_value_prev == adc_value) {
+				    cont_misure_adc++;
+				} else {
+				    adc_value_prev = adc_value;
+				}
+				if(cont_misure_adc == 30){
+					snprintf(actual_val_temp, sizeof(actual_val_temp), "%d", (int)adc_value);
+					HAL_UART_Transmit(&huart1, (uint8_t *)actual_val_temp, sizeof(actual_val_temp), HAL_MAX_DELAY);
+					cont_misure_adc = 0;
+				}
+				else{
+					HAL_ADC_Start_IT(&hadc1);
+				}
+				adc_data_ready = 0;
+
+			}
+	  }
+	  else if(push_mode_button == 0 && push_select_button == 1){
+		  cont_misure_tim = 0;
+			ssd1306_SetCursor(30,0);
+			ssd1306_FillRectangle(0,0,128,15, White);
+			snprintf(SCREEN_TEXT, sizeof(SCREEN_TEXT), "Lum %d\r\n", (int)counter);
+			ssd1306_WriteString(SCREEN_TEXT, Font_16x15, Black);
+			ssd1306_UpdateScreen();
+
+		   rawCounter = __HAL_TIM_GET_COUNTER(&htim3);
+
+		   // Controlla se il valore è cambiato e in che direzione
+		   if (rawCounter != last_rawCounter)
+		   {
+		       // Se il contatore del timer è aumentato
+		       if (rawCounter > last_rawCounter)
+		       {
+		           // Incrementa il nostro contatore solo se non ha raggiunto il valore massimo
+		           if (counter < MAX_VALUE)
+		           {
+		               counter++;
+		           }
+		       }
+		       // Se il contatore del timer è diminuito
+		       else if (rawCounter < last_rawCounter)
+		       {
+		           // Decrementa il nostro contatore solo se non ha raggiunto il valore minimo
+		           if (counter > MIN_VALUE)
+		           {
+		               counter--;
+		           }
+		       }
+
+		       // Aggiorna la variabile last_rawCounter per il prossimo ciclo
+		       last_rawCounter = rawCounter;
+
+		       // Ricalcola il delay solo se il counter è cambiato
+		       if (counter != last_counter) {
+		           last_counter = counter;
+		       }
+		       else {
+		    	   cont_misure_tim ++;
+		       }
+		       if(cont_misure_tim == 30){
+					snprintf(actual_val_luce, sizeof(actual_val_luce), "%d", (int)counter);
+					HAL_UART_Transmit(&huart2, (uint8_t *)actual_val_luce, sizeof(actual_val_luce), HAL_MAX_DELAY);
+					cont_misure_tim = 0;
+		       }
+		   }
+	  }
+
 //  	if(HAL_GPIO_ReadPin(B1_GPIO_Port, B1_Pin) == GPIO_PIN_RESET)
 //  	{
 //  		HAL_GPIO_TogglePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin);
@@ -144,53 +324,17 @@ int main(void)
 //  		ssd1306_Fill(Black);
 //  		ssd1306_FillRectangle(0,0,128,15, White);
 //  		ssd1306_SetCursor(15,0);
-//  		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+//  		ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
 //  		ssd1306_UpdateScreen();
 //
 //  	}
 
-    HAL_ADC_Start(&hadc1);
-   HAL_ADC_PollForConversion(&hadc1, HAL_MAX_DELAY);
-        adcvalue = HAL_ADC_GetValue(&hadc1);
-   HAL_ADC_Stop(&hadc1);
 
-   rawCounter = __HAL_TIM_GET_COUNTER(&htim3);
 
-   // Controlla se il valore è cambiato e in che direzione
-   if (rawCounter != last_rawCounter)
-   {
-       // Se il contatore del timer è aumentato
-       if (rawCounter > last_rawCounter)
-       {
-           // Incrementa il nostro contatore solo se non ha raggiunto il valore massimo
-           if (counter < MAX_VALUE)
-           {
-               counter++;
-           }
-       }
-       // Se il contatore del timer è diminuito
-       else if (rawCounter < last_rawCounter)
-       {
-           // Decrementa il nostro contatore solo se non ha raggiunto il valore minimo
-           if (counter > MIN_VALUE)
-           {
-               counter--;
-           }
-       }
 
-       // Aggiorna la variabile last_rawCounter per il prossimo ciclo
-       last_rawCounter = rawCounter;
 
-       // Ricalcola il delay solo se il counter è cambiato
-       if (counter != last_counter) {
-           blink_delay = 10 + (counter * 10);
-           last_counter = counter;
-       }
-   }
-    HAL_GPIO_TogglePin(LD2_GPIO_Port, LD2_Pin);
 
-    HAL_Delay(blink_delay);
-
+   HAL_Delay(100);
 
 
   }
@@ -488,26 +632,23 @@ static void MX_GPIO_Init(void)
   GPIO_InitStruct.Speed = GPIO_SPEED_FREQ_LOW;
   HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PA8 */
-  GPIO_InitStruct.Pin = GPIO_PIN_8;
+  /*Configure GPIO pin : BTN_MODE_Pin */
+  GPIO_InitStruct.Pin = BTN_MODE_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOA, &GPIO_InitStruct);
+  HAL_GPIO_Init(BTN_MODE_GPIO_Port, &GPIO_InitStruct);
 
-  /*Configure GPIO pin : PB3 */
-  GPIO_InitStruct.Pin = GPIO_PIN_3;
+  /*Configure GPIO pin : BTN_SEL_Pin */
+  GPIO_InitStruct.Pin = BTN_SEL_Pin;
   GPIO_InitStruct.Mode = GPIO_MODE_IT_FALLING;
   GPIO_InitStruct.Pull = GPIO_PULLUP;
-  HAL_GPIO_Init(GPIOB, &GPIO_InitStruct);
+  HAL_GPIO_Init(BTN_SEL_GPIO_Port, &GPIO_InitStruct);
 
   /* EXTI interrupt init*/
-  HAL_NVIC_SetPriority(EXTI3_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI3_IRQn);
 
-  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 0, 0);
-  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
-
-  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 0, 0);
+  HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
   /* USER CODE BEGIN MX_GPIO_Init_2 */
@@ -529,7 +670,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
       		ssd1306_Fill(Black);
       		ssd1306_FillRectangle(0,0,128,15, White);
       		ssd1306_SetCursor(15,0);
-      		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+      		ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
       		ssd1306_UpdateScreen();
         }
         else
@@ -539,7 +680,7 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
       		ssd1306_Fill(Black);
       		ssd1306_FillRectangle(0,0,128,15, White);
       		ssd1306_SetCursor(15,0);
-      		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
+      		ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
       		ssd1306_UpdateScreen();
         }
     }
@@ -548,29 +689,141 @@ void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
   /* Prevent unused argument(s) compilation warning */
+  //PIN_8 SELECT, PIN_3 MODE
+
+/* COMPORTAMENTO DI DEFAULT:
+ * il display mostra il valore di luce desiderato, ossia quello selezionato con il potenziometro
+ * LOGICA BOTTONI:
+ * se MODE = 0, il display mostra il valore desiderato,
+ * se MODE = 1, il display mostra il valore attuale,
+ * di cosa dipende da SELECT,
+ * se SELECT = 0, il display mostra il valore della luce,
+ * se SELECT = 1, il display mostra il valore della temperatura,
+ * ogni volta che il bottone mode o select viene premuto,
+ * si nega il valore di push_mode_button o push_select_button
+ * LOGICA LED E LED_RGB:
+ * se MODE = 0, RGB_RED_LED si accende e RGB_BLUE_LED si spegne,
+ * se MODE = 1, RGB_RED_LED si spegne e RGB_BLUE_LED si accende,
+ * se SELECT = 0, YELLOW_LED si spegne,
+ * se SELECT = 1, YELLOW_LED si accende*/
+
+  BaseType_t xHigherPriorityTaskWoken = pdFALSE;
+
   if(GPIO_Pin == GPIO_PIN_8){
-	  HAL_GPIO_TogglePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin);
-	  char SCREEN_text[] = "SELECT";
-		ssd1306_Fill(Black);
-		ssd1306_FillRectangle(0,0,128,15, White);
-		ssd1306_SetCursor(15,0);
-		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
-		ssd1306_UpdateScreen();
-  }
-  else if(GPIO_Pin == GPIO_PIN_3){
-  	char SCREEN_text[] = "MODE";
-		ssd1306_Fill(Black);
-		ssd1306_FillRectangle(0,0,128,15, White);
-		ssd1306_SetCursor(15,0);
-		retVal = ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
-		ssd1306_UpdateScreen();
+
+	  push_mode_button = !(push_mode_button);
+
+	  if(push_mode_button == 0){
+		  HAL_GPIO_WritePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin, GPIO_PIN_SET);
+		  HAL_GPIO_WritePin(RGB_LED_BLUE_GPIO_Port, RGB_LED_BLUE_Pin, GPIO_PIN_RESET);
+
+		  if(push_select_button == 0){
+
+//			  if(xSemaphoreTakeFromISR(sem_sel_luce,&xHigherPriorityTaskWoken) == pdTRUE){
+//			 strncpy(SCREEN_TEXT, selected_val_luce, DIM+1);
+//			  }
+
+
+		  }
+		  else if(push_select_button == 1){
+			  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+//			  if(xSemaphoreTakeFromISR(sem_sel_temp,&xHigherPriorityTaskWoken) == pdTRUE){
+//			 strncpy(SCREEN_TEXT, selected_val_temp, DIM+1);
+//			  }
+		  }
+	  }
+	  else if(push_mode_button == 1){
+		  HAL_GPIO_WritePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin, GPIO_PIN_RESET);
+		  HAL_GPIO_WritePin(RGB_LED_BLUE_GPIO_Port, RGB_LED_BLUE_Pin, GPIO_PIN_SET);
+		  if(push_select_button == 0){
+//			  if(xSemaphoreTakeFromISR(sem_act_luce,&xHigherPriorityTaskWoken) == pdTRUE){
+//		  			 strncpy(SCREEN_TEXT, actual_val_luce, DIM+1);
+//			  }
+		  		  }
+		  		  else if(push_select_button == 1){
+//		  			if(xSemaphoreTakeFromISR(sem_act_temp,&xHigherPriorityTaskWoken) == pdTRUE){
+//		  			 strncpy(SCREEN_TEXT, actual_val_temp, DIM+1);
+//		  			}
+		  		  }
+	  }
   }
 
+  else if(GPIO_Pin == GPIO_PIN_3){
+	  push_select_button = !(push_select_button);
+
+
+	  if(push_select_button == 0){
+		  HAL_GPIO_WritePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin, GPIO_PIN_RESET);
+		  if(push_mode_button == 0){
+			  HAL_ADC_Start_IT(&hadc1);
+//			  if(xSemaphoreTakeFromISR(sem_sel_luce,&xHigherPriorityTaskWoken) == pdTRUE){
+//			  strncpy(SCREEN_TEXT, selected_val_luce, DIM+1);
+//			  }
+
+
+		  }
+		  else if(push_mode_button == 1){
+//			  if(xSemaphoreTakeFromISR(sem_act_luce,&xHigherPriorityTaskWoken) == pdTRUE){
+//			  strncpy(SCREEN_TEXT, actual_val_luce, DIM+1);
+//			  }
+		  }
+	  }
+	  else if(push_select_button ==1){
+		  HAL_GPIO_WritePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin, GPIO_PIN_SET);
+		  if(push_mode_button == 0){
+			  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
+//			  if(xSemaphoreTakeFromISR(sem_sel_temp,&xHigherPriorityTaskWoken) == pdTRUE){
+//		  	  strncpy(SCREEN_TEXT, selected_val_temp, DIM+1);
+//			  }
+		  }
+		  else if(push_mode_button == 1){
+//			  if(xSemaphoreTakeFromISR(sem_act_temp,&xHigherPriorityTaskWoken) == pdTRUE){
+//		  	  strncpy(SCREEN_TEXT, actual_val_temp, DIM+1);
+//			  }
+		  }
+
+	  }
+  }
+
+//  	ssd1306_Fill(Black);
+//		ssd1306_FillRectangle(0,0,128,15, White);
+//		ssd1306_SetCursor(15,0);
+//		ssd1306_WriteString(SCREEN_TEXT, Font_16x15, Black);
+//		ssd1306_UpdateScreen();
+}
+
+void HAL_ADC_ConvCpltCallback(ADC_HandleTypeDef* h){
+
+	if(h == &hadc1){
+		adc_value = HAL_ADC_GetValue(&hadc1);
+		adc_data_ready = 1;
+
+
+	}
+
+}
   /* NOTE: This function Should not be modified, when the callback is needed,
            the HAL_GPIO_EXTI_Callback could be implemented in the user file
    */
-}
 /* USER CODE END 4 */
+
+/* USER CODE BEGIN Header_StartDefaultTask */
+/**
+  * @brief  Function implementing the defaultTask thread.
+  * @param  argument: Not used
+  * @retval None
+  */
+/* USER CODE END Header_StartDefaultTask */
+void StartDefaultTask(void *argument)
+{
+  /* USER CODE BEGIN 5 */
+  /* Infinite loop */
+  for(;;)
+  {
+    osDelay(1);
+  }
+  /* USER CODE END 5 */
+}
 
 /**
   * @brief  This function is executed in case of error occurrence.
