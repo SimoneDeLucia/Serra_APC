@@ -189,14 +189,14 @@ int main(void)
   HAL_ADC_Start_IT(&hadc1);
   /* USER CODE END 2 */
 
-//  /* Init scheduler */
+  /* Init scheduler */
 //  osKernelInitialize();
-//
-//  /* USER CODE BEGIN RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_MUTEX */
 //  /* add mutexes, ... */
-//  /* USER CODE END RTOS_MUTEX */
-//
-//  /* USER CODE BEGIN RTOS_SEMAPHORES */
+  /* USER CODE END RTOS_MUTEX */
+
+  /* USER CODE BEGIN RTOS_SEMAPHORES */
 //  sem_sel_luce = xSemaphoreCreateBinary();
 //  sem_sel_temp = xSemaphoreCreateBinary();
 //  sem_act_luce = xSemaphoreCreateBinary();
@@ -206,29 +206,29 @@ int main(void)
 //  xSemaphoreGive(sem_sel_temp);
 //  xSemaphoreGive(sem_act_luce);
 //  xSemaphoreGive(sem_act_temp);
-//  /* USER CODE END RTOS_SEMAPHORES */
-//
-//  /* USER CODE BEGIN RTOS_TIMERS */
+  /* USER CODE END RTOS_SEMAPHORES */
+
+  /* USER CODE BEGIN RTOS_TIMERS */
 //  /* start timers, add new ones, ... */
-//  /* USER CODE END RTOS_TIMERS */
-//
-//  /* USER CODE BEGIN RTOS_QUEUES */
+  /* USER CODE END RTOS_TIMERS */
+
+  /* USER CODE BEGIN RTOS_QUEUES */
 //  /* add queues, ... */
-//  /* USER CODE END RTOS_QUEUES */
-//
-//  /* Create the thread(s) */
-//  /* creation of defaultTask */
-// defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
-//
-//  /* USER CODE BEGIN RTOS_THREADS */
+  /* USER CODE END RTOS_QUEUES */
+
+  /* Create the thread(s) */
+  /* creation of defaultTask */
+//  defaultTaskHandle = osThreadNew(StartDefaultTask, NULL, &defaultTask_attributes);
+
+  /* USER CODE BEGIN RTOS_THREADS */
 //  /* add threads, ... */
-//  /* USER CODE END RTOS_THREADS */
-//
-//  /* USER CODE BEGIN RTOS_EVENTS */
+  /* USER CODE END RTOS_THREADS */
+
+  /* USER CODE BEGIN RTOS_EVENTS */
 //  /* add events, ... */
-//  /* USER CODE END RTOS_EVENTS */
-//
-//  /* Start scheduler */
+  /* USER CODE END RTOS_EVENTS */
+
+  /* Start scheduler */
 //  osKernelStart();
 
   /* We should never get here as control is now taken by the scheduler */
@@ -242,10 +242,13 @@ int main(void)
     /* USER CODE BEGIN 3 */
 	  if(push_mode_button == 0 && push_select_button == 0){
 		  cont_misure_adc = 0;
-			ssd1306_SetCursor(30,0);
+			ssd1306_SetCursor(5,0);
 			ssd1306_FillRectangle(0,0,128,15, White);
-			snprintf(SCREEN_TEXT, sizeof(SCREEN_TEXT), "Temp. %d\r\n", (int)adc_value);
+			snprintf(SCREEN_TEXT, sizeof(SCREEN_TEXT), "Temperatura \r\n");
 			ssd1306_WriteString(SCREEN_TEXT, Font_16x15, Black);
+			ssd1306_SetCursor(45, 30);
+			snprintf(SCREEN_TEXT, sizeof(SCREEN_TEXT), "%d\r\n", (int)adc_value);
+			ssd1306_WriteString(SCREEN_TEXT, Font_16x26, White);
 			ssd1306_UpdateScreen();
 		  if(adc_data_ready == 1)
 			{
@@ -268,10 +271,13 @@ int main(void)
 	  }
 	  else if(push_mode_button == 0 && push_select_button == 1){
 		  cont_misure_tim = 0;
-			ssd1306_SetCursor(30,0);
+			ssd1306_SetCursor(10,0);
 			ssd1306_FillRectangle(0,0,128,15, White);
-			snprintf(SCREEN_TEXT, sizeof(SCREEN_TEXT), "Lum %d\r\n", (int)counter);
+			snprintf(SCREEN_TEXT, sizeof(SCREEN_TEXT), "Luminosita \r\n");
 			ssd1306_WriteString(SCREEN_TEXT, Font_16x15, Black);
+			ssd1306_SetCursor(45,30);
+			snprintf(SCREEN_TEXT, sizeof(SCREEN_TEXT), "%d \r\n", (int)counter);
+			ssd1306_WriteString(SCREEN_TEXT, Font_16x26, White);
 			ssd1306_UpdateScreen();
 
 		   rawCounter = __HAL_TIM_GET_COUNTER(&htim3);
@@ -648,6 +654,9 @@ static void MX_GPIO_Init(void)
   HAL_NVIC_SetPriority(EXTI3_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI3_IRQn);
 
+  HAL_NVIC_SetPriority(EXTI9_5_IRQn, 5, 0);
+  HAL_NVIC_EnableIRQ(EXTI9_5_IRQn);
+
   HAL_NVIC_SetPriority(EXTI15_10_IRQn, 5, 0);
   HAL_NVIC_EnableIRQ(EXTI15_10_IRQn);
 
@@ -657,34 +666,6 @@ static void MX_GPIO_Init(void)
 }
 
 /* USER CODE BEGIN 4 */
-void HAL_TIM_IC_CaptureCallback(TIM_HandleTypeDef *htim)
-{
-    if(htim->Instance == TIM3)
-    {
-    	int32_t encoder_position = __HAL_TIM_GET_COUNTER(htim);
-
-        if(__HAL_TIM_IS_TIM_COUNTING_DOWN(htim))
-        {
-            // rotazione verso sinistra
-        	char SCREEN_text[] = "SX_Rotation";
-      		ssd1306_Fill(Black);
-      		ssd1306_FillRectangle(0,0,128,15, White);
-      		ssd1306_SetCursor(15,0);
-      		ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
-      		ssd1306_UpdateScreen();
-        }
-        else
-        {
-            // rotazione verso destra
-        	char SCREEN_text[] = "DX_Rotation";
-      		ssd1306_Fill(Black);
-      		ssd1306_FillRectangle(0,0,128,15, White);
-      		ssd1306_SetCursor(15,0);
-      		ssd1306_WriteString(SCREEN_text, Font_16x15, Black);
-      		ssd1306_UpdateScreen();
-        }
-    }
-}
 
 void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 {
@@ -717,15 +698,15 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 		  HAL_GPIO_WritePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin, GPIO_PIN_SET);
 		  HAL_GPIO_WritePin(RGB_LED_BLUE_GPIO_Port, RGB_LED_BLUE_Pin, GPIO_PIN_RESET);
 
-		  if(push_select_button == 0){
-
-//			  if(xSemaphoreTakeFromISR(sem_sel_luce,&xHigherPriorityTaskWoken) == pdTRUE){
-//			 strncpy(SCREEN_TEXT, selected_val_luce, DIM+1);
-//			  }
-
-
-		  }
-		  else if(push_select_button == 1){
+//		  if(push_select_button == 0){
+//
+////			  if(xSemaphoreTakeFromISR(sem_sel_luce,&xHigherPriorityTaskWoken) == pdTRUE){
+////			 strncpy(SCREEN_TEXT, selected_val_luce, DIM+1);
+////			  }
+//
+//
+//		  }
+		 /* else */if(push_select_button == 1){
 			  HAL_TIM_Encoder_Start(&htim3, TIM_CHANNEL_ALL);
 //			  if(xSemaphoreTakeFromISR(sem_sel_temp,&xHigherPriorityTaskWoken) == pdTRUE){
 //			 strncpy(SCREEN_TEXT, selected_val_temp, DIM+1);
@@ -735,16 +716,16 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 	  else if(push_mode_button == 1){
 		  HAL_GPIO_WritePin(RGB_LED_RED_GPIO_Port, RGB_LED_RED_Pin, GPIO_PIN_RESET);
 		  HAL_GPIO_WritePin(RGB_LED_BLUE_GPIO_Port, RGB_LED_BLUE_Pin, GPIO_PIN_SET);
-		  if(push_select_button == 0){
-//			  if(xSemaphoreTakeFromISR(sem_act_luce,&xHigherPriorityTaskWoken) == pdTRUE){
-//		  			 strncpy(SCREEN_TEXT, actual_val_luce, DIM+1);
-//			  }
-		  		  }
-		  		  else if(push_select_button == 1){
-//		  			if(xSemaphoreTakeFromISR(sem_act_temp,&xHigherPriorityTaskWoken) == pdTRUE){
-//		  			 strncpy(SCREEN_TEXT, actual_val_temp, DIM+1);
-//		  			}
-		  		  }
+//		  if(push_select_button == 0){
+////			  if(xSemaphoreTakeFromISR(sem_act_luce,&xHigherPriorityTaskWoken) == pdTRUE){
+////		  			 strncpy(SCREEN_TEXT, actual_val_luce, DIM+1);
+////			  }
+//		  		  }
+//		  		  else if(push_select_button == 1){
+////		  			if(xSemaphoreTakeFromISR(sem_act_temp,&xHigherPriorityTaskWoken) == pdTRUE){
+////		  			 strncpy(SCREEN_TEXT, actual_val_temp, DIM+1);
+////		  			}
+//		  		  }
 	  }
   }
 
@@ -762,11 +743,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 
 
 		  }
-		  else if(push_mode_button == 1){
-//			  if(xSemaphoreTakeFromISR(sem_act_luce,&xHigherPriorityTaskWoken) == pdTRUE){
-//			  strncpy(SCREEN_TEXT, actual_val_luce, DIM+1);
-//			  }
-		  }
+//		  else if(push_mode_button == 1){
+////			  if(xSemaphoreTakeFromISR(sem_act_luce,&xHigherPriorityTaskWoken) == pdTRUE){
+////			  strncpy(SCREEN_TEXT, actual_val_luce, DIM+1);
+////			  }
+//		  }
 	  }
 	  else if(push_select_button ==1){
 		  HAL_GPIO_WritePin(YELLOW_LED_GPIO_Port, YELLOW_LED_Pin, GPIO_PIN_SET);
@@ -776,11 +757,11 @@ void HAL_GPIO_EXTI_Callback(uint16_t GPIO_Pin)
 //		  	  strncpy(SCREEN_TEXT, selected_val_temp, DIM+1);
 //			  }
 		  }
-		  else if(push_mode_button == 1){
-//			  if(xSemaphoreTakeFromISR(sem_act_temp,&xHigherPriorityTaskWoken) == pdTRUE){
-//		  	  strncpy(SCREEN_TEXT, actual_val_temp, DIM+1);
-//			  }
-		  }
+//		  else if(push_mode_button == 1){
+////			  if(xSemaphoreTakeFromISR(sem_act_temp,&xHigherPriorityTaskWoken) == pdTRUE){
+////		  	  strncpy(SCREEN_TEXT, actual_val_temp, DIM+1);
+////			  }
+//		  }
 
 	  }
   }
